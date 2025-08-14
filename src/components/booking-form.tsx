@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
 import { CalendarIcon, CheckCircle, Loader2 } from "lucide-react";
-import type { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
 import { generateICS } from "@/lib/ics";
@@ -43,6 +42,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { saveBooking } from "@/services/bookingService";
 
 const bookingFormSchema = z.object({
   name: z.string().min(2, {
@@ -67,6 +68,7 @@ type BookingFormValues = z.infer<typeof bookingFormSchema>;
 export function BookingForm() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [bookingSuccess, setBookingSuccess] = React.useState(false);
+  const { toast } = useToast();
 
   const form = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
@@ -76,10 +78,14 @@ export function BookingForm() {
     },
   });
 
-  function onSubmit(data: BookingFormValues) {
+  async function onSubmit(data: BookingFormValues) {
     setIsSubmitting(true);
 
     try {
+      // Save to Firestore
+      await saveBooking(data);
+
+      // Generate and download ICS file
       const icsContent = generateICS(
         data.dateRange.from,
         data.dateRange.to,
@@ -101,6 +107,11 @@ export function BookingForm() {
       form.reset();
     } catch (error) {
       console.error("Failed to create booking:", error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description: "There was a problem with your request. Please try again.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -232,7 +243,7 @@ export function BookingForm() {
               Booking Confirmed!
             </AlertDialogTitle>
             <AlertDialogDescription className="text-center">
-              Your booking has been processed. A calendar file (.ics) has been
+              Your booking has been saved and a calendar file (.ics) has been
               downloaded to your device. Please open it to add the event to your
               iCloud, Google, or other calendar app.
             </AlertDialogDescription>
